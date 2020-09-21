@@ -1,15 +1,15 @@
 #!/bin/sh
-# This script will configure an OpenBSD -current (6.8) 
+# This script will configure an OpenBSD -current (6.8)
 # server with Wireguard and Web Rendering Proxy. It should be run as root.
 #
 # This script assumes the Wireguard server IP will be 10.1.1.1 and the
 # client (peer) IP will be 10.1.1.2. Adjust these as you desire.
-# 
+#
 # Once wireguard-tools is installed, generate the private key with `wg genkey`
 # Generate the public key with `echo privatekeygoeshere | wg pubkey`
 #
 # The private key will be placed in the /etc/wireguard/server.conf file we'll make.
-# The public key will need to be supplied to the peer. 
+# The public key will need to be supplied to the peer.
 # Lastly, you'll need the peer's public key for that server.conf file too.
 ######################################################################
 
@@ -22,7 +22,10 @@ ftp https://github.com/tenox7/wrp/releases/download/4.5.1/wrp-amd64-openbsd
 install -m 755 wrp-amd64-openbsd /usr/local/bin
 
 # Add a non-root user to run the WRP binary
-useradd wrpuser
+useradd -m wrpuser
+
+# Forward packets between the interfaces
+echo 'net.inet.ip.forwarding=1' >> /etc/sysctl.conf
 
 # Create wireguard interface. Modify the IP address as desired
 touch /etc/hostname.wg0
@@ -54,6 +57,7 @@ block drop      # block stateless traffic
 pass in quick on egress proto tcp from any to egress:0 port 22
 pass in quick on egress proto udp from any to egress:0 port 51820
 pass in quick on 10.1.1.1 proto tcp from $int_ip to 10.1.1.1 port 80
+match out on egress from (wg0:network) to any nat-to (egress:0)
 pass out
 
 block return in on ! lo0 proto tcp to port 6000:6010
@@ -63,7 +67,7 @@ EOF
 
 # Use AdGuard DNS for adblocking
 touch /etc/dhclient.conf
-echo 'prepend domain-name-servers 176.103.130.130;' >> /etc/dhclient.conf 
+echo 'prepend domain-name-servers 176.103.130.130;' >> /etc/dhclient.conf
 
 # Clean up
 rm wrp-amd64-openbsd
